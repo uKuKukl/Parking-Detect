@@ -1,0 +1,11 @@
+venv/
+vision/env/
+__pycache__/
+*.pyc
+.idea/
+.vscode/
+node_modules/
+dist/
+target/
+*.class
+.DS_Store

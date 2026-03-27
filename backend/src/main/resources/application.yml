@@ -1,0 +1,25 @@
+server:
+  port: 8080
+
+spring:
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 100MB
+  datasource:
+    url: jdbc:mysql://127.0.0.1:3306/parking_detect?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai
+    username: root
+    password: 123456
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/**/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+# LangChain4j & LLM API 配置
+llm:
+  api-key: ${LLM_API_KEY:sk-CRInVgOKFCogaXAro2rCSURPrfMnn9WaQuNJYcm3d9vVD4WW}
+  base-url: ${LLM_BASE_URL:https://api.linkapi.ai/v1} # 如果使用 xAI 或代理请修改此地址
+  model-name: ${LLM_MODEL_NAME:gpt-5}
