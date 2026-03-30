@@ -16,3 +16,14 @@ CREATE TABLE IF NOT EXISTS `parking_violations` (
     `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '记录创建时间',
     `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '记录更新时间'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='违规停车记录表';
+
+-- ---------- 新增：电子围栏（ROI）配置表 ----------
+CREATE TABLE IF NOT EXISTS `roi_config` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `name` VARCHAR(100) NOT NULL COMMENT '场景名称 (例如: 南门非机动车道)',
+  `points_json` TEXT NOT NULL COMMENT '点位数组的 JSON 格式',
+  `reference_width` INT NOT NULL COMMENT '绘制 ROI 时参考底图宽度',
+  `reference_height` INT NOT NULL COMMENT '绘制 ROI 时参考底图高度',
+  `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='电子围栏配置表';

@@ -4,9 +4,20 @@
     
     <div style="margin-bottom: 20px; display: flex; align-items: center; gap: 12px;">
       <el-button type="primary" @click="fetchData">刷新列表</el-button>
+
+      <el-select v-model="selectedRoiId" placeholder="选择场地防误报规则 (可选)" clearable style="width: 250px;">
+        <el-option
+          v-for="rule in rulesList"
+          :key="rule.id"
+          :label="rule.name"
+          :value="rule.id"
+        />
+      </el-select>
+
       <el-upload
         class="upload-demo"
-        action="http://localhost:8080/api/violations/upload-image"
+        :action="uploadAction"
+        :data="{ roiId: selectedRoiId }"
         :show-file-list="false"
         :on-success="handleUploadSuccess"
         :on-error="handleUploadError"
@@ -53,10 +64,21 @@ import { ElMessage } from 'element-plus'
 import { Upload } from '@element-plus/icons-vue'
 
 const tableData = ref([])
+const rulesList = ref([])
+const selectedRoiId = ref(null)
+const uploadAction = `${(import.meta.env.VITE_API_URL || '').replace(/\/$/, '')}/api/violations/upload-image` || '/api/violations/upload-image'
 
 const fetchData = async () => {
   try {
     tableData.value = await request.get('/api/violations/pending')
+  } catch (error) {
+    console.error(error)
+  }
+}
+
+const fetchRules = async () => {
+  try {
+    rulesList.value = await request.get('/api/rois')
   } catch (error) {
     console.error(error)
   }
@@ -89,5 +111,6 @@ const handleUploadError = (err) => {
 
 onMounted(() => {
   fetchData()
+  fetchRules()
 })
 </script>

@@ -1,21 +1,28 @@
 package com.parking.detect.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.parking.detect.entity.ParkingViolation;
+import com.parking.detect.entity.RoiConfig;
 import com.parking.detect.service.ParkingViolationService;
 import com.parking.detect.service.ReportGenerationService;
+import com.parking.detect.service.RoiConfigService;
 import jakarta.servlet.http.HttpServletResponse;
 import org.apache.poi.xwpf.usermodel.ParagraphAlignment;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.apache.poi.xwpf.usermodel.XWPFParagraph;
 import org.apache.poi.xwpf.usermodel.XWPFRun;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -29,6 +36,11 @@ public class ParkingViolationController {
 
     @Autowired
     private ReportGenerationService reportGenerationService;
+
+    @Autowired
+    private RoiConfigService roiConfigService;
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
      * Python vision.py -> Spring Boot (Step 2.4)
@@ -155,8 +167,25 @@ public class ParkingViolationController {
      * Upload an image from Frontend to trigger the YOLO python script natively
      */
     @PostMapping("/upload-image")
-    public String uploadImage(@RequestParam("file") MultipartFile file) {
+    public ResponseEntity<String> uploadImage(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(name = "roiId", required = false) Long roiId) {
         try {
+            String roiParam = "";
+            if (roiId != null) {
+                RoiConfig config = roiConfigService.getById(roiId);
+                if (config == null) {
+                    return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("上传检测失败: 所选 ROI 规则不存在");
+                }
+                if (config.getPointsJson() != null && !config.getPointsJson().trim().isEmpty()) {
+                    Map<String, Object> roiPayload = new LinkedHashMap<>();
+                    roiPayload.put("points", objectMapper.readValue(config.getPointsJson().trim(), Object.class));
+                    roiPayload.put("referenceWidth", config.getReferenceWidth());
+                    roiPayload.put("referenceHeight", config.getReferenceHeight());
+                    roiParam = objectMapper.writeValueAsString(roiPayload);
+                }
+            }
+
             File uploadDir = new File(System.getProperty("user.dir"), "uploads");
             if (!uploadDir.exists()) uploadDir.mkdirs();
             File destTempFile = new File(uploadDir, System.currentTimeMillis() + "_" + file.getOriginalFilename());
@@ -166,17 +195,41 @@ public class ParkingViolationController {
             File pythonExe = new File(visionDir, "venv/Scripts/python.exe");
             String pythonCmd = pythonExe.exists() ? pythonExe.getAbsolutePath() : "python";
 
-            ProcessBuilder pb = new ProcessBuilder(pythonCmd, "vision.py", "--source", destTempFile.getAbsolutePath());
+            ProcessBuilder pb;
+            if (!roiParam.isEmpty()) {
+                pb = new ProcessBuilder(pythonCmd, "vision.py", "--source", destTempFile.getAbsolutePath(), "--roi", roiParam);
+            } else {
+                pb = new ProcessBuilder(pythonCmd, "vision.py", "--source", destTempFile.getAbsolutePath());
+            }
             pb.directory(visionDir);
             pb.redirectErrorStream(true);
             
             Process process = pb.start();
-            process.waitFor();
             
-            return "上传并检测完成！正在刷新列表...";
+            // 读取 Python 打印的日志，方便调试
+            StringBuilder processOutput = new StringBuilder();
+            try (java.io.BufferedReader reader = new java.io.BufferedReader(
+                    new java.io.InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    System.out.println("[YOLO-Python] " + line);
+                    processOutput.append(line).append(System.lineSeparator());
+                }
+            }
+            
+            int exitCode = process.waitFor();
+            if (exitCode != 0) {
+                String errorMessage = processOutput.toString().trim();
+                if (errorMessage.isEmpty()) {
+                    errorMessage = "Python 检测进程退出码: " + exitCode;
+                }
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("上传检测失败: " + errorMessage);
+            }
+
+            return ResponseEntity.ok("上传并检测完成！正在刷新列表...");
         } catch (Exception e) {
             e.printStackTrace();
-            return "上传检测失败: " + e.getMessage();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("上传检测失败: " + e.getMessage());
         }
     }
 }

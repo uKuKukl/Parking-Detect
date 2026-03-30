@@ -6,6 +6,10 @@ __pycache__/
 .vscode/
 node_modules/
 dist/
+frontend/dist/
 target/
 *.class
 .DS_Store
+backend/uploads/
+vision/output/
+for test/

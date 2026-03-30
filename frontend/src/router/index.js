@@ -21,6 +21,11 @@ const router = createRouter({
       path: '/settings',
       name: 'settings',
       component: () => import('../views/SettingsView.vue')
+    },
+    {
+      path: '/roi',
+      name: 'roi',
+      component: () => import('../views/RoiSettingsView.vue')
     }
   ]
 })
