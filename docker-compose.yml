@@ -1,0 +1,80 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: parking-detect-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-123456}
+      MYSQL_DATABASE: parking_detect
+      TZ: Asia/Shanghai
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./backend/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${DB_PASSWORD:-123456}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  vision-service:
+    build:
+      context: .
+      dockerfile: vision-service/Dockerfile
+    container_name: parking-detect-vision-service
+    environment:
+      VISION_MODEL_PATH: /app/vision/models/best.pt
+      VISION_OUTPUT_DIR: /app/vision/output
+    ports:
+      - "8001:8001"
+    volumes:
+      - vision-output:/app/vision/output
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=3).read()"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: parking-detect-backend
+    environment:
+      DB_URL: jdbc:mysql://mysql:3306/parking_detect?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai
+      DB_USERNAME: root
+      DB_PASSWORD: ${DB_PASSWORD:-123456}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://api.openai.com/v1}
+      LLM_MODEL_NAME: ${LLM_MODEL_NAME:-gpt-4o-mini}
+      VISION_SERVICE_ENABLED: "true"
+      VISION_SERVICE_BASE_URL: http://vision-service:8001
+    ports:
+      - "8080:8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      vision-service:
+        condition: service_started
+    volumes:
+      - vision-output:/app/vision/output
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/actuator/health"]
+      interval: 20s
+      timeout: 5s
+      retries: 10
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: parking-detect-frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      backend:
+        condition: service_started
+
+volumes:
+  mysql-data:
+  vision-output:

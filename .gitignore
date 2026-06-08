@@ -4,6 +4,8 @@ __pycache__/
 *.pyc
 .idea/
 .vscode/
+.claude/
+.superpowers/
 node_modules/
 dist/
 frontend/dist/
@@ -12,4 +14,5 @@ target/
 .DS_Store
 backend/uploads/
 vision/output/
+vision/modelss/
 for test/

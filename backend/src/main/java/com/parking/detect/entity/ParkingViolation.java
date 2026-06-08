@@ -19,6 +19,7 @@ public class ParkingViolation {
     private String imagePath;
     private String cameraId;
     private Double confidence;
+    private String decisionDetails;
     
     /**
      * 0-待复核, 1-已确认, 2-已驳回, 3-已生成报告

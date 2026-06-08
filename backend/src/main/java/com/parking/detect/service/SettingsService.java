@@ -12,7 +12,7 @@ import java.nio.file.StandardOpenOption;
 public class SettingsService {
 
     private final Path PROMPT_FILE_PATH = Paths.get(System.getProperty("user.dir"), "prompt_template.txt");
-    private final String DEFAULT_PROMPT = "请根据以下信息，生成一份正式、简洁的校园安全通报：时间：{{time}}，地点：{{location}}，设备：{{camera_id}}，发现电动车违规停放。要求包含事件描述、安全隐患说明、整改建议。";
+    private final String DEFAULT_PROMPT = "请根据以下信息，生成一份正式、简洁的校园安全通报：时间：{{time}}，地点：{{location}}，设备：{{camera_id}}，本次确认共发现 {{violation_count}} 辆电动车违规停放。要求包含事件描述、安全隐患说明、整改建议。";
 
     public String getPromptTemplate() {
         try {
@@ -23,6 +23,14 @@ public class SettingsService {
         } catch (IOException e) {
             return DEFAULT_PROMPT;
         }
+    }
+
+    public String getDefaultPromptTemplate() {
+        return DEFAULT_PROMPT;
+    }
+
+    public void resetPromptTemplate() {
+        savePromptTemplate(DEFAULT_PROMPT);
     }
 
     public void savePromptTemplate(String template) {

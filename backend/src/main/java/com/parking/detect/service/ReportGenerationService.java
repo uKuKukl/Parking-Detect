@@ -38,15 +38,26 @@ public class ReportGenerationService {
             try {
                 // Replace placeholders
                 String timeStr = violation.getDetectTime() != null ? violation.getDetectTime().format(formatter) : "未知时间";
+                Integer violationCount = parkingViolationService.resolveViolationCount(violation.getLocation());
+                if (violationCount == null || violationCount < 1) {
+                    violationCount = 1;
+                }
+                String resolvedLocation = parkingViolationService.buildLocationText(
+                        violation.getCameraId(),
+                        violation.getLocation(),
+                        violationCount
+                );
                 String promptText = promptTemplate
                         .replace("{{time}}", timeStr)
-                        .replace("{{location}}", violation.getLocation() != null ? violation.getLocation() : "未知地点")
-                        .replace("{{camera_id}}", violation.getCameraId() != null ? violation.getCameraId() : "未知设备");
+                        .replace("{{location}}", resolvedLocation)
+                        .replace("{{camera_id}}", violation.getCameraId() != null ? violation.getCameraId() : "未知设备")
+                        .replace("{{violation_count}}", String.valueOf(violationCount));
 
                 // Call LLM
                 String reportText = chatLanguageModel.generate(promptText);
 
                 // Update violation
+                violation.setLocation(resolvedLocation);
                 violation.setReportText(reportText);
                 violation.setStatus(3); // 3-已生成报告
                 parkingViolationService.updateById(violation);

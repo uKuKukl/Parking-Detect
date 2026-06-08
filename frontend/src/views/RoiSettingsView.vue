@@ -1,24 +1,56 @@
 <template>
-  <div class="roi-settings">
-    <h2>围栏场地规则管理</h2>
-    
+  <div class="page-shell roi-settings">
+    <div class="page-header">
+      <div>
+        <h2 class="page-title">电子围栏配置</h2>
+        <p class="page-subtitle">配置 ROI 区域规则，并为摄像头检测提供场地边界约束。</p>
+      </div>
+    </div>
+
     <el-row :gutter="20">
       <!-- 左侧：新建规则 -->
       <el-col :span="12">
-        <el-card>
+        <el-card class="panel-card" shadow="never">
           <template #header>
             <div class="card-header">新增场地围栏规则 (合法停车区)</div>
           </template>
           
           <el-form label-width="100px">
+            <el-form-item label="地点预设">
+              <el-select v-model="selectedPresetCode" style="width: 100%;" @change="applyPresetSelection">
+                <el-option
+                  v-for="preset in locationPresets"
+                  :key="preset.code"
+                  :label="preset.label"
+                  :value="preset.code"
+                />
+              </el-select>
+            </el-form-item>
+
             <el-form-item label="场地名称">
-              <el-input v-model="newRuleName" placeholder="例如：南大门停车区" />
+              <el-input
+                v-model="newRuleName"
+                placeholder="例如：南大门停车区"
+                :disabled="selectedPresetCode !== 'custom'"
+              />
+            </el-form-item>
+
+            <el-form-item v-if="selectedPresetCode === 'custom'" label="英文地点">
+              <el-input
+                v-model="customCameraSuffix"
+                placeholder="例如：SOUTH_GATE"
+                @input="normalizeCustomCameraSuffix"
+              />
+            </el-form-item>
+
+            <el-form-item label="绑定摄像头">
+              <el-input :model-value="generatedCameraId" disabled placeholder="会自动生成摄像头编号" />
             </el-form-item>
             
             <el-form-item label="参考底图">
               <input type="file" accept="image/*" @change="onImageSelected" />
               <div style="font-size: 12px; color: #999; margin-top: 5px;">
-                请上传一张真实的监控截图作为参考底图，在图上点击绘制“合法停车范围”。
+                请先选择地点预设，再上传一张真实的监控截图作为参考底图，在图上点击绘制“合法停车范围”。
               </div>
             </el-form-item>
             
@@ -40,7 +72,7 @@
             </div>
             
             <div style="margin-top: 20px; text-align: right;">
-              <el-button type="primary" @click="saveRule" :disabled="!newRuleName || points.length < 3">保存该场景规则</el-button>
+              <el-button type="primary" @click="saveRule" :disabled="!newRuleName || !generatedCameraId || points.length < 3">保存该场景规则</el-button>
             </div>
           </el-form>
         </el-card>
@@ -48,7 +80,7 @@
       
       <!-- 右侧：现有规则列表 -->
       <el-col :span="12">
-        <el-card>
+        <el-card class="panel-card" shadow="never">
           <template #header>
             <div class="card-header">已有规则列表</div>
           </template>
@@ -56,6 +88,11 @@
           <el-table :data="rulesList" stripe style="width: 100%">
             <el-table-column prop="id" label="ID" width="60" />
             <el-table-column prop="name" label="场地名称" />
+            <el-table-column label="绑定摄像头" width="170">
+              <template #default="scope">
+                {{ getBoundCameraId(scope.row.id) || '未绑定' }}
+              </template>
+            </el-table-column>
             <el-table-column prop="createTime" label="创建时间" width="180" />
             <el-table-column label="操作" width="120">
               <template #default="scope">
@@ -70,20 +107,43 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import request from '@/utils/request'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 const rulesList = ref([])
 const newRuleName = ref('')
+const cameraList = ref([])
+const selectedPresetCode = ref('south_gate')
+const customCameraSuffix = ref('')
 const imageUrl = ref('')
 const points = ref([])
+
+const locationPresets = [
+  { code: 'south_gate', label: '南门', ruleName: '南门', cameraSuffix: 'SOUTH_GATE' },
+  { code: 'west_gate', label: '西门', ruleName: '西门', cameraSuffix: 'WEST_GATE' },
+  { code: 'east_gate', label: '东门', ruleName: '东门', cameraSuffix: 'EAST_GATE' },
+  { code: 'north_gate', label: '北门', ruleName: '北门', cameraSuffix: 'NORTH_GATE' },
+  { code: 'custom', label: '自定义', ruleName: '', cameraSuffix: '' }
+]
 
 const bgImage = ref(null)
 const roiCanvas = ref(null)
 let imageOriginalWidth = 0
 let imageOriginalHeight = 0
 let currentObjectUrl = ''
+
+const selectedPreset = computed(() => {
+  return locationPresets.find(item => item.code === selectedPresetCode.value) || locationPresets[0]
+})
+
+const generatedCameraId = computed(() => {
+  const suffix = selectedPresetCode.value === 'custom'
+    ? customCameraSuffix.value.trim()
+    : selectedPreset.value.cameraSuffix
+
+  return suffix ? `CAM_${suffix}` : ''
+})
 
 // 获取已有规则
 const fetchRules = async () => {
@@ -93,6 +153,37 @@ const fetchRules = async () => {
   } catch (error) {
     console.error(error)
   }
+}
+
+const fetchCameras = async () => {
+  try {
+    cameraList.value = await request.get('/api/cameras')
+  } catch (error) {
+    console.error(error)
+  }
+}
+
+const applyPresetSelection = () => {
+  if (selectedPresetCode.value === 'custom') {
+    newRuleName.value = ''
+    customCameraSuffix.value = ''
+    return
+  }
+  newRuleName.value = selectedPreset.value.ruleName
+}
+
+const normalizeCustomCameraSuffix = () => {
+  customCameraSuffix.value = customCameraSuffix.value
+    .toUpperCase()
+    .replace(/\s+/g, '_')
+    .replace(/[^A-Z0-9_-]+/g, '')
+    .replace(/_+/g, '_')
+    .replace(/-+/g, '-')
+}
+
+const getBoundCameraId = (roiId) => {
+  const camera = cameraList.value.find(item => item.roiId === roiId)
+  return camera?.cameraId || ''
 }
 
 // 选择图片后展示
@@ -190,12 +281,17 @@ const saveRule = async () => {
       name: newRuleName.value,
       pointsJson: JSON.stringify(points.value), // 转换成 "[[x,y],[x,y]]" 字符串
       referenceWidth: imageOriginalWidth,
-      referenceHeight: imageOriginalHeight
+      referenceHeight: imageOriginalHeight,
+      cameraId: generatedCameraId.value,
+      cameraName: generatedCameraId.value,
+      location: newRuleName.value
     }
-    await request.post('/api/rois', payload)
-    ElMessage.success('规则保存成功！')
+    await request.post('/api/rois/bind-camera', payload)
+    ElMessage.success(`规则保存成功，已绑定摄像头 ${generatedCameraId.value}`)
     
+    selectedPresetCode.value = 'south_gate'
     newRuleName.value = ''
+    customCameraSuffix.value = ''
     points.value = []
     imageOriginalWidth = 0
     imageOriginalHeight = 0
@@ -205,6 +301,8 @@ const saveRule = async () => {
     }
     imageUrl.value = ''
     fetchRules()
+    fetchCameras()
+    applyPresetSelection()
   } catch (error) {
     console.error(error)
   }
@@ -216,30 +314,33 @@ const deleteRule = async (id) => {
     await request.delete(`/api/rois/${id}`)
     ElMessage.success('删除成功')
     fetchRules()
+    fetchCameras()
   } catch (cancel) {}
 }
 
 onMounted(() => {
+  applyPresetSelection()
   fetchRules()
+  fetchCameras()
 })
 </script>
 
 <style scoped>
-.roi-settings {
-  padding: 20px;
-}
 .card-header {
-  font-weight: bold;
+  font-weight: 800;
+  color: var(--admin-text);
 }
+
 .canvas-container {
   margin-top: 15px;
   width: 100%;
   max-width: 600px;
-  border: 1px solid #dcdfe6;
-  border-radius: 4px;
+  border: 1px solid var(--admin-border);
+  border-radius: 14px;
   overflow: hidden;
-  background-color: #f5f7fa;
+  background-color: var(--admin-surface-soft);
 }
+
 .roi-canvas {
   width: 100%;
   height: auto;

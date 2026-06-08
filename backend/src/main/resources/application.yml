@@ -7,9 +7,9 @@ spring:
       max-file-size: 100MB
       max-request-size: 100MB
   datasource:
-    url: jdbc:mysql://127.0.0.1:3306/parking_detect?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai
-    username: root
-    password: 123456
+    url: ${DB_URL:jdbc:mysql://127.0.0.1:3306/parking_detect?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:123456}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
 mybatis-plus:
@@ -20,6 +20,21 @@ mybatis-plus:
 
 # LangChain4j & LLM API 配置
 llm:
-  api-key: ${LLM_API_KEY:sk-CRInVgOKFCogaXAro2rCSURPrfMnn9WaQuNJYcm3d9vVD4WW}
+  api-key: ${LLM_API_KEY:}
   base-url: ${LLM_BASE_URL:https://api.linkapi.ai/v1} # 如果使用 xAI 或代理请修改此地址
   model-name: ${LLM_MODEL_NAME:gpt-5}
+
+vision:
+  service:
+    enabled: ${VISION_SERVICE_ENABLED:true}
+    base-url: ${VISION_SERVICE_BASE_URL:http://127.0.0.1:8001}
+    timeout-ms: ${VISION_SERVICE_TIMEOUT_MS:30000}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics,info
+  endpoint:
+    health:
+      show-details: when_authorized
