@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM ultralytics/ultralytics:latest-cpu
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -6,12 +6,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     VISION_OUTPUT_DIR=/app/vision/output
 
 WORKDIR /app
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends libgl1 libglib2.0-0 \
-    && rm -rf /var/lib/apt/lists/*
 
 COPY vision-service/requirements.txt /app/vision-service/requirements.txt
-RUN pip install --no-cache-dir -r /app/vision-service/requirements.txt
+RUN pip install --no-cache-dir --timeout 300 --retries 5 -r /app/vision-service/requirements.txt
 
 COPY vision-service /app/vision-service
 COPY vision/decision_logic.py /app/vision/decision_logic.py
